@@ -1,0 +1,237 @@
+1. Login AWS
+
+Cek kredensial masih aktif:
+
+aws sts get-caller-identity --no-cli-pager
+
+Harus muncul:
+
+{
+  "Account": "195163394391",
+  "Arn": "arn:aws:sts::..."
+}
+2. Buat Folder Backup
+mkdir D:\backup-aws
+cd D:\backup-aws
+
+Struktur:
+
+backup-aws/
+├── main.tf
+├── vpc.tf
+├── security.tf
+├── alb.tf
+├── ecs.tf
+├── outputs.tf
+├── variables.tf
+└── terraform.tfstate
+3. Buat Provider Terraform
+
+main.tf
+
+terraform {
+  required_providers {
+    aws = {
+      source = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
+provider "aws" {
+  region = "us-east-1"
+}
+4. Tulis Resource yang Ada di AWS
+
+Contoh yang sudah kamu backup:
+
+VPC
+resource "aws_vpc" "main" {
+  cidr_block           = "10.1.0.0/16"
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+
+  tags = {
+    Name = "vpc-latihan-cc-2026"
+  }
+}
+Public Subnet
+resource "aws_subnet" "public_a" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.1.1.0/24"
+  availability_zone       = "us-east-1a"
+  map_public_ip_on_launch = true
+}
+Private Subnet
+resource "aws_subnet" "private_a" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.1.11.0/24"
+  availability_zone = "us-east-1a"
+}
+Internet Gateway
+resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
+}
+NAT Gateway
+resource "aws_nat_gateway" "main" {
+  allocation_id = "eipalloc-xxxxxxxx"
+  subnet_id     = aws_subnet.public_a.id
+}
+Route Table Public
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.main.id
+  }
+}
+Route Table Private
+resource "aws_route_table" "private" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.main.id
+  }
+}
+Security Group ALB
+resource "aws_security_group" "alb" {
+  name        = "sc-alb-latihan-cc-2026"
+  description = "ALB Security Group"
+  vpc_id      = aws_vpc.main.id
+}
+Security Group ECS
+resource "aws_security_group" "ecs" {
+  name        = "sc-ecs-latihan-cc-2026"
+  description = "ECS Security Group"
+  vpc_id      = aws_vpc.main.id
+}
+Security Group DB
+resource "aws_security_group" "db" {
+  name        = "sc-db-latihan-cc-2026"
+  description = "Database Security Group"
+  vpc_id      = aws_vpc.main.id
+}
+5. Import Resource yang Sudah Ada
+
+Contoh:
+
+terraform import aws_vpc.main vpc-00c61baf5f8fd295a
+
+Subnet:
+
+terraform import aws_subnet.public_a subnet-08e0b90890f9a53d0
+terraform import aws_subnet.public_b subnet-0edf8530fcd5025b0
+
+terraform import aws_subnet.private_a subnet-05f89a63f1ff7a877
+terraform import aws_subnet.private_b subnet-027bb3384153579df
+
+IGW:
+
+terraform import aws_internet_gateway.main igw-0dc2c4c441b7526ce
+
+NAT:
+
+terraform import aws_nat_gateway.main nat-16d2816d6ede4ba56
+
+Route Table:
+
+terraform import aws_route_table.public rtb-08bc9dc6ab2cfc9fe
+terraform import aws_route_table.private rtb-002386bdfc326f4ca
+
+Security Group:
+
+terraform import aws_security_group.alb sg-0a13f74aa6480320e
+terraform import aws_security_group.ecs sg-03ed0efab4ed6feaa
+terraform import aws_security_group.db sg-063c078a7df921b09
+6. Validasi Backup
+
+Cek semua resource yang tersimpan:
+
+terraform state list
+
+Contoh hasil:
+
+aws_vpc.main
+aws_subnet.public_a
+aws_subnet.public_b
+aws_subnet.private_a
+aws_subnet.private_b
+aws_internet_gateway.main
+aws_nat_gateway.main
+aws_route_table.public
+aws_route_table.private
+aws_security_group.alb
+aws_security_group.ecs
+aws_security_group.db
+7. Pastikan Backup Valid
+
+Jalankan:
+
+terraform plan
+
+Jika muncul:
+
+No changes. Your infrastructure still matches the configuration.
+
+berarti backup Terraform dan AWS sudah sinkron.
+
+8. Simpan Backup
+
+Minimal simpan:
+
+main.tf
+vpc.tf
+security.tf
+terraform.tfstate
+
+Bisa zip:
+
+Compress-Archive -Path * -DestinationPath backup-aws.zip
+9. Restore Jika AWS Terhapus
+
+Misalnya VPC, subnet, route table, SG terhapus.
+
+Masuk ke folder Terraform:
+
+cd D:\backup-aws
+
+Login AWS lagi:
+
+aws sts get-caller-identity --no-cli-pager
+
+Lalu:
+
+terraform init
+terraform apply
+
+Terraform akan membuat kembali resource yang hilang sesuai file .tf.
+
+10. Backup yang Ideal untuk LKS Cloud Computing
+
+Selain VPC dan Security Group, backup juga:
+
+VPC
+Subnet
+Internet Gateway
+NAT Gateway
+Route Table
+Security Group
+ECR
+ECS Cluster
+ECS Service
+ECS Task Definition
+Application Load Balancer (ALB)
+Target Group
+Listener
+IAM Role
+CloudWatch Log Group
+RDS (jika ada)
+
+Dengan begitu, jika seluruh resource AWS terhapus, kamu cukup menjalankan:
+
+terraform init
+terraform apply
+
+dan infrastruktur bisa dibuat kembali dari Terraform
